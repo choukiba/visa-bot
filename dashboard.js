@@ -6,38 +6,48 @@ const bodyParser = require('body-parser');
 const app = express();
 const PORT = 3000;
 
+let cronEnabled = true;
+
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// عرض السجل
 app.get('/', (req, res) => {
-  const logPath = path.join(__dirname, 'logs', 'history.log');
+  const logPath = path.join(__dirname, 'logs/history.log');
   let logs = [];
-
   if (fs.existsSync(logPath)) {
-    const content = fs.readFileSync(logPath, 'utf-8');
-    logs = content.trim().split('\n').reverse().slice(0, 20);
+    logs = fs.readFileSync(logPath, 'utf-8')
+      .split('\n')
+      .filter(line => line.trim() !== '')
+      .map(line => {
+        const [date, status, ...msg] = line.split('|');
+        return {
+          date: date?.trim(),
+          status: status?.trim(),
+          message: msg.join('|').trim()
+        };
+      });
   }
-
-  res.render('index', { logs });
+  res.render('index', { logs, cronEnabled });
 });
 
-// عرض نموذج الإعدادات
 app.get('/settings', (req, res) => {
   const userDataPath = path.join(__dirname, 'data/user.json');
   const userData = JSON.parse(fs.readFileSync(userDataPath, 'utf-8'));
-  res.render('form', { userData });
+  res.render('form', { userData, success: req.query.success === 'true' });
 });
 
-// حفظ الإعدادات
 app.post('/settings', (req, res) => {
   const userDataPath = path.join(__dirname, 'data/user.json');
   fs.writeFileSync(userDataPath, JSON.stringify(req.body, null, 2));
+  res.redirect('/settings?success=true');
+});
+
+app.post('/toggle-cron', (req, res) => {
+  cronEnabled = !cronEnabled;
   res.redirect('/');
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Dashboard يعمل على http://localhost:${PORT}`);
+  console.log(`🚀 Dashboard running at http://localhost:${PORT}`);
 });
